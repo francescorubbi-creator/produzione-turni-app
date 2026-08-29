@@ -1,0 +1,89 @@
+:root[data-tema="giorno"] {
+  --bg: #FAFAFA;
+  --bg-card: #FFFFFF;
+  --testo: #1A1A1A;
+  --testo-secondario: #5A5A5A;
+  --bordo: #E0E0E0;
+
+  --stato-completato: #D9EAD3;
+  --stato-completato-testo: #1B5E20;
+  --stato-in-corso: #FFF2CC;
+  --stato-in-corso-testo: #7A5C00;
+  --stato-bloccato: #F8D7DA;
+  --stato-bloccato-testo: #A61B1B;
+  --stato-festivo: #C00000;
+
+  --turno-mattina: #FAF4EC;
+  --turno-giornaliero: #FFFFFF;
+  --turno-pomeriggio: #FAF4EC;
+  --turno-notte: #EEE;
+  --assenza-malattia: #0020AD;
+  --assenza-ferie: #FFC640;
+  --assenza-104: #E5FF00;
+  --assenza-non-disp: #FF0000;
+  --straordinario: #BA0003;
+}
+
+:root[data-tema="notte"] {
+  --bg: #121417;
+  --bg-card: #1C1F24;
+  --testo: #EAEAEA;
+  --testo-secondario: #A0A0A0;
+  --bordo: #33383F;
+
+  --stato-completato: #2A4A32;
+  --stato-completato-testo: #8FD19E;
+  --stato-in-corso: #4A4020;
+  --stato-in-corso-testo: #E8D078;
+  --stato-bloccato: #4A2A2C;
+  --stato-bloccato-testo: #E89B9F;
+  --stato-festivo: #E06666;
+
+  --turno-mattina: #232629;
+  --turno-giornaliero: #1C1F24;
+  --turno-pomeriggio: #232629;
+  --turno-notte: #14161A;
+  --assenza-malattia: #5C7CE0;
+  --assenza-ferie: #D9A93B;
+  --assenza-104: #C7D95C;
+  --assenza-non-disp: #E06666;
+  --straordinario: #E0666B;
+}
+
+body {
+  background: var(--bg);
+  color: var(--testo);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cella-interattiva, button, .chip-controllo {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+.badge-stato {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.badge-stato[data-stato="completato"] { background: var(--stato-completato); color: var(--stato-completato-testo); }
+.badge-stato[data-stato="in_corso"]   { background: var(--stato-in-corso);   color: var(--stato-in-corso-testo); }
+.badge-stato[data-stato="bloccato"]   { background: var(--stato-bloccato);   color: var(--stato-bloccato-testo); }
+
+.griglia-reparto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .griglia-reparto { grid-template-columns: 1fr; }
+  html { font-size: 17px; }
+}
