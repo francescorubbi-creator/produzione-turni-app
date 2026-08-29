@@ -13,6 +13,18 @@ export default function DashboardReparto() {
   const [controlli, setControlli] = useState([])
   const [righe, setRighe] = useState([])
 
+  // --- Nuovo: stato per il form di inserimento riga ---
+  const [formAperto, setFormAperto] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [erroreForm, setErroreForm] = useState('')
+  const [nuovaRiga, setNuovaRiga] = useState({
+    codice_prodotto: '',
+    data_produzione: '',
+    quantita_kg: '',
+    batch: '',
+    settimana: '',
+  })
+
   useEffect(() => {
     let canale
 
@@ -58,6 +70,39 @@ export default function DashboardReparto() {
     }).eq('id', riga.id)
   }
 
+  // --- Nuovo: salvataggio nuova riga ---
+  async function salvaNuovaRiga(e) {
+    e.preventDefault()
+    setErroreForm('')
+
+    if (!nuovaRiga.codice_prodotto || !nuovaRiga.data_produzione) {
+      setErroreForm('Codice prodotto e data sono obbligatori.')
+      return
+    }
+
+    setSalvando(true)
+    const { error } = await supabase.from('programmi_produzione').insert({
+      reparto_id: reparto.id,
+      codice_prodotto: nuovaRiga.codice_prodotto,
+      data_produzione: nuovaRiga.data_produzione,
+      quantita_kg: nuovaRiga.quantita_kg ? Number(nuovaRiga.quantita_kg) : null,
+      batch: nuovaRiga.batch || null,
+      settimana: nuovaRiga.settimana || null,
+      stato: 'in_corso',
+      controlli: {},
+    })
+    setSalvando(false)
+
+    if (error) {
+      setErroreForm('Errore nel salvataggio: ' + error.message)
+      return
+    }
+
+    // La riga arriverà comunque via realtime, ma resettiamo subito il form
+    setNuovaRiga({ codice_prodotto: '', data_produzione: '', quantita_kg: '', batch: '', settimana: '' })
+    setFormAperto(false)
+  }
+
   const mediaSettimanale = useMemo(() => {
     if (!righe.length) return 0
     const tot = righe.reduce((s, r) => s + (r.quantita_kg || 0), 0)
@@ -72,8 +117,70 @@ export default function DashboardReparto() {
     <div>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
         <h1 style={{ color: reparto.colore_tema }}>{reparto.nome}</h1>
-        <button onClick={toggleNotte}>{notte ? '☀️ Modalita giorno' : '🌙 Modalita notte'}</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {isAdmin && (
+            <button onClick={() => setFormAperto(f => !f)}>
+              {formAperto ? '✕ Annulla' : '+ Aggiungi riga'}
+            </button>
+          )}
+          <button onClick={toggleNotte}>{notte ? '☀️ Modalita giorno' : '🌙 Modalita notte'}</button>
+        </div>
       </header>
+
+      {isAdmin && formAperto && (
+        <form onSubmit={salvaNuovaRiga} style={{
+          margin: '0 16px 16px', padding: 16, borderRadius: 12,
+          border: '1px solid var(--bordo)', background: 'var(--bg-card)',
+          display: 'grid', gap: 8, maxWidth: 420,
+        }}>
+          <label>
+            Codice prodotto *
+            <input
+              value={nuovaRiga.codice_prodotto}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, codice_prodotto: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <label>
+            Data produzione *
+            <input
+              type="date"
+              value={nuovaRiga.data_produzione}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, data_produzione: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <label>
+            Quantità (Kg)
+            <input
+              type="number"
+              value={nuovaRiga.quantita_kg}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, quantita_kg: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <label>
+            Batch
+            <input
+              value={nuovaRiga.batch}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, batch: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <label>
+            Settimana
+            <input
+              value={nuovaRiga.settimana}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, settimana: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          {erroreForm && <p style={{ color: 'red' }}>{erroreForm}</p>}
+          <button type="submit" disabled={salvando}>
+            {salvando ? 'Salvataggio...' : 'Salva riga'}
+          </button>
+        </form>
+      )}
 
       {superaSoglia && (
         <div className="badge-stato" data-stato="bloccato" style={{ margin: '0 16px 16px' }}>
