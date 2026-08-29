@@ -4,6 +4,15 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 
+// Prova a trovare un'etichetta leggibile per un prodotto, qualunque sia
+// il nome esatto delle colonne nella tabella "prodotti".
+function etichettaProdotto(p) {
+  const nome = p.nome_prodotto ?? p.nome ?? p.descrizione ?? null
+  const codice = p.codice_pf ?? p.codice ?? p.codice_prodotto ?? null
+  if (nome && codice) return `${codice} — ${nome}`
+  return nome ?? codice ?? p.id
+}
+
 export default function DashboardReparto() {
   const { codiceReparto = 'gel' } = useParams()
   const { isAdmin } = useAuth()
@@ -12,17 +21,21 @@ export default function DashboardReparto() {
   const [reparto, setReparto] = useState(null)
   const [controlli, setControlli] = useState([])
   const [righe, setRighe] = useState([])
+  const [prodotti, setProdotti] = useState([])
 
-  // --- Nuovo: stato per il form di inserimento riga ---
+  // --- stato per il form di inserimento riga ---
   const [formAperto, setFormAperto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erroreForm, setErroreForm] = useState('')
   const [nuovaRiga, setNuovaRiga] = useState({
-    codice_prodotto: '',
-    data_produzione: '',
-    quantita_kg: '',
-    batch: '',
+    prodotto_id: '',
     settimana: '',
+    data_ordine: '',
+    data_produzione: '',
+    batch: '',
+    lotto: '',
+    linea: '',
+    note: '',
   })
 
   useEffect(() => {
@@ -40,6 +53,11 @@ export default function DashboardReparto() {
       const { data: prog } = await supabase.from('programmi_produzione').select('*')
         .eq('reparto_id', rep.id).order('data_produzione')
       setRighe(prog || [])
+
+      // Elenco prodotti per il menu a tendina del form (select('*') per non
+      // dipendere dai nomi esatti delle colonne).
+      const { data: prods } = await supabase.from('prodotti').select('*')
+      setProdotti(prods || [])
 
       canale = supabase.channel(`programmi_${rep.id}`)
         .on('postgres_changes',
@@ -70,25 +88,31 @@ export default function DashboardReparto() {
     }).eq('id', riga.id)
   }
 
-  // --- Nuovo: salvataggio nuova riga ---
+  // --- salvataggio nuova riga, allineato allo schema reale della tabella ---
   async function salvaNuovaRiga(e) {
     e.preventDefault()
     setErroreForm('')
 
-    if (!nuovaRiga.codice_prodotto || !nuovaRiga.data_produzione) {
-      setErroreForm('Codice prodotto e data sono obbligatori.')
+    if (!nuovaRiga.data_produzione || !nuovaRiga.settimana) {
+      setErroreForm('Data produzione e settimana sono obbligatorie.')
       return
     }
 
     setSalvando(true)
     const { error } = await supabase.from('programmi_produzione').insert({
       reparto_id: reparto.id,
-      codice_prodotto: nuovaRiga.codice_prodotto,
+      prodotto_id: nuovaRiga.prodotto_id || null,
+      settimana: Number(nuovaRiga.settimana),
+      data_ordine: nuovaRiga.data_ordine || null,
       data_produzione: nuovaRiga.data_produzione,
-      quantita_kg: nuovaRiga.quantita_kg ? Number(nuovaRiga.quantita_kg) : null,
       batch: nuovaRiga.batch || null,
-      settimana: nuovaRiga.settimana || null,
+      lotto: nuovaRiga.lotto || null,
+      linea: nuovaRiga.linea || null,
+      note: nuovaRiga.note || null,
+      quantita_kg: null,
       stato: 'in_corso',
+      riga_completata: false,
+      is_festivo: false,
       controlli: {},
     })
     setSalvando(false)
@@ -98,8 +122,10 @@ export default function DashboardReparto() {
       return
     }
 
-    // La riga arriverà comunque via realtime, ma resettiamo subito il form
-    setNuovaRiga({ codice_prodotto: '', data_produzione: '', quantita_kg: '', batch: '', settimana: '' })
+    setNuovaRiga({
+      prodotto_id: '', settimana: '', data_ordine: '', data_produzione: '',
+      batch: '', lotto: '', linea: '', note: '',
+    })
     setFormAperto(false)
   }
 
@@ -134,10 +160,33 @@ export default function DashboardReparto() {
           display: 'grid', gap: 8, maxWidth: 420,
         }}>
           <label>
-            Codice prodotto *
+            Prodotto
+            <select
+              value={nuovaRiga.prodotto_id}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, prodotto_id: e.target.value })}
+              style={{ width: '100%' }}
+            >
+              <option value="">— seleziona —</option>
+              {prodotti.map(p => (
+                <option key={p.id} value={p.id}>{etichettaProdotto(p)}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Settimana *
             <input
-              value={nuovaRiga.codice_prodotto}
-              onChange={e => setNuovaRiga({ ...nuovaRiga, codice_prodotto: e.target.value })}
+              type="number"
+              value={nuovaRiga.settimana}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, settimana: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <label>
+            Data ordine
+            <input
+              type="date"
+              value={nuovaRiga.data_ordine}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, data_ordine: e.target.value })}
               style={{ width: '100%' }}
             />
           </label>
@@ -151,15 +200,6 @@ export default function DashboardReparto() {
             />
           </label>
           <label>
-            Quantità (Kg)
-            <input
-              type="number"
-              value={nuovaRiga.quantita_kg}
-              onChange={e => setNuovaRiga({ ...nuovaRiga, quantita_kg: e.target.value })}
-              style={{ width: '100%' }}
-            />
-          </label>
-          <label>
             Batch
             <input
               value={nuovaRiga.batch}
@@ -168,10 +208,26 @@ export default function DashboardReparto() {
             />
           </label>
           <label>
-            Settimana
+            Lotto
             <input
-              value={nuovaRiga.settimana}
-              onChange={e => setNuovaRiga({ ...nuovaRiga, settimana: e.target.value })}
+              value={nuovaRiga.lotto}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, lotto: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <label>
+            Linea
+            <input
+              value={nuovaRiga.linea}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, linea: e.target.value })}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <label>
+            Note
+            <input
+              value={nuovaRiga.note}
+              onChange={e => setNuovaRiga({ ...nuovaRiga, note: e.target.value })}
               style={{ width: '100%' }}
             />
           </label>
@@ -195,7 +251,7 @@ export default function DashboardReparto() {
             borderRadius: 12, padding: 16,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong>{riga.codice_prodotto}</strong>
+              <strong>{riga.codice_prodotto ?? riga.prodotto_id ?? '—'}</strong>
               <span className="badge-stato" data-stato={riga.stato}>{riga.stato}</span>
             </div>
             <p style={{ color: 'var(--testo-secondario)' }}>
